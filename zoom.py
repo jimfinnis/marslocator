@@ -75,6 +75,8 @@ class QtImageViewer(QGraphicsView):
         self.canZoom = True
         self.canPan = True
         self.midButtonHook = None # set this for middle button options, will call a midButtonPressed/midButtonReleased on this
+        self.imageUpdateHook = None # set this to call imageUpdated on another object when image updates (zoom, pan)
+        self.zoomFactor = 1
 
     def hasImage(self):
         """ Returns whether or not the scene contains an image pixmap.
@@ -143,9 +145,17 @@ class QtImageViewer(QGraphicsView):
             return
         if len(self.zoomStack) and self.sceneRect().contains(self.zoomStack[-1]):
             self.fitInView(self.zoomStack[-1], Qt.IgnoreAspectRatio)  # Show zoomed rect (ignore aspect ratio).
+            sfull = max(self.sceneRect().width(),self.sceneRect().height())
+            r = self.zoomStack[-1]
+            ssub = max(r.width(),r.height())
+            self.zoomFactor = sfull/ssub
         else:
             self.zoomStack = []  # Clear the zoom stack (in case we got here because of an invalid zoom).
             self.fitInView(self.sceneRect(), self.aspectRatioMode)  # Show entire image (use current aspect ratio mode).
+            self.zoomFactor = 1
+        if self.imageUpdateHook is not None:
+            self.imageUpdateHook.imageUpdated()
+
 
     def resizeEvent(self, event):
         """ Maintain current zoom on resize.
