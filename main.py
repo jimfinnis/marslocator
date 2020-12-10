@@ -83,7 +83,6 @@ class UI(QtWidgets.QMainWindow):
         csv.register_dialect("custom", delimiter=":", skipinitialspace=True)
         self.imgview.loadImageFromFile('mars.png')
         self.origmap = QtGui.QPixmap(self.imgview.pixmap())
-        self.colctr=0
         self.show()
         self.goButton.clicked.connect(self.newptcoords)
         self.stringButton.clicked.connect(self.newptstring)
@@ -94,6 +93,7 @@ class UI(QtWidgets.QMainWindow):
         self.imgview.imageUpdateHook = self
         self.clear()
         self.load()
+        self.curnum=len(self.points)-1
 
     def save(self):
         with open('data','w',newline='') as f:
@@ -144,8 +144,8 @@ class UI(QtWidgets.QMainWindow):
         self.recursingImageUpdated=False
 
     def addPoint(self,lat,lon,txt):
-        r,g,b = cols[self.colctr%len(cols)]
-        self.colctr=self.colctr+1
+        r,g,b = cols[self.curnum%len(cols)]
+        self.curnum=self.curnum+1
         pt = (lat,lon,r,g,b,txt)
         self.points.append(pt)
         self.imageUpdated()
@@ -163,7 +163,7 @@ class UI(QtWidgets.QMainWindow):
             lat,lon = coords(x,y,z)
             self.latOut.setText(str(lat))
             self.lonOut.setText(str(lon))
-            self.addPoint(lat,lon,"GPS"+str(self.colctr))
+            self.addPoint(lat,lon,"GPS"+str(self.curnum))
             print(lat,lon)
 
         except ValueError as e:
@@ -175,7 +175,7 @@ class UI(QtWidgets.QMainWindow):
             y = float(self.yedit.text())
             z = float(self.zedit.text())
             lat,lon = coords(x,y,z)
-            self.addPoint(lat,lon,"XYZ"+str(self.colctr))
+            self.addPoint(lat,lon,"XYZ"+str(self.curnum))
             print(lat,lon)
         except ValueError as e:
             raise e
@@ -185,7 +185,7 @@ class UI(QtWidgets.QMainWindow):
         self.latOut.setText(str(lat))
         self.lonOut.setText(str(lon))
         x,y,z = XYZfromLatLon(lat,lon)
-        self.addPoint(lat,lon,"MAP"+str(self.colctr))
+        self.addPoint(lat,lon,"MAP"+str(self.curnum))
         self.xedit.setText(str(x))
         self.yedit.setText(str(y))
         self.zedit.setText(str(z))
