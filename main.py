@@ -75,13 +75,13 @@ class MarsLocator(Locator):
         self.Y = 131072.5
         self.Z = 1631072.5
         self.K = 63292 # radius
-
-        self.lat90y=0
-        self.latminus90y=4095
-        self.lon0x=0
-        self.lon360x=8191
+        self.lat90y=327
+        self.latminus90y=4421
+        self.lon0x=257
+        self.lon360x=8448
         self.mapfile = "mars.png"
         self.datafile = "marsdata"
+
 class EarthLocator(Locator):
     def __init__(self):
         super().__init__()
@@ -89,20 +89,39 @@ class EarthLocator(Locator):
         self.Y = 0.0
         self.Z = 0.0
         self.K = 60000 # radius
-
         self.lat90y=0
         self.latminus90y=4095
         self.lon0x=0
         self.lon360x=8191
         self.mapfile = "earth.png"
         self.datafile = "earthdata"
+
+class EarthOresLocator(Locator):
+    def __init__(self):
+        super().__init__()
+        self.X = 0.0
+        self.Y = 0.0
+        self.Z = 0.0
+        self.K = 60000 # radius
+        self.lat90y=327
+        self.latminus90y=4421
+        self.lon0x=257
+        self.lon360x=8448
+        self.mapfile = "earthores.png"
+        self.datafile = "earthdata"
     
 class UI(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self,planet):
         super().__init__()
         uic.loadUi('main.ui',self)
         csv.register_dialect("custom", delimiter=":", skipinitialspace=True)
-        self.loc = EarthLocator()
+        if planet=='mars':
+            self.loc = MarsLocator()
+        elif planet=='earthores':
+            self.loc = EarthOresLocator()
+        else:
+            self.loc = EarthLocator()
+         
         self.imgview.loadImageFromFile(self.loc.mapfile)
         self.origmap = QtGui.QPixmap(self.imgview.pixmap())
         self.show()
@@ -219,8 +238,19 @@ class UI(QtWidgets.QMainWindow):
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
-    
-    window = UI()
+    parser = QCommandLineParser()
+    parser.addHelpOption()
+    parser.addVersionOption()
+    parser.addPositionalArgument("planet", "mars/earth/earthores")
+
+    parser.process(app)
+    args = parser.positionalArguments() 
+
+    planet = "earth"
+    if len(args)>0:
+        planet = args[0]
+        
+    window = UI(planet)
     app.exec_()
     
 if __name__ == "__main__":
