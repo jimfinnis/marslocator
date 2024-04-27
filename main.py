@@ -129,6 +129,7 @@ class UI(QtWidgets.QMainWindow):
         self.stringButton.clicked.connect(self.newptstring)
         self.clearButton.clicked.connect(self.clear)
         self.writeButton.clicked.connect(self.save)
+        self.xyzButton.clicked.connect(self.latLonToXYZ)
         self.imgview.midButtonHook = self
         self.recursingImageUpdated=False
         self.imgview.imageUpdateHook = self
@@ -220,9 +221,8 @@ class UI(QtWidgets.QMainWindow):
             print(lat,lon)
         except ValueError as e:
             raise e
-
-    def midButtonPressed(self,x,y):
-        lat,lon = self.loc.latLonFromScreen(x,y)
+            
+    def gotoLatLon(self,lat,lon):
         self.latOut.setText(str(lat))
         self.lonOut.setText(str(lon))
         x,y,z = self.loc.XYZfromLatLon(lat,lon)
@@ -231,6 +231,15 @@ class UI(QtWidgets.QMainWindow):
         self.yedit.setText(str(y))
         self.zedit.setText(str(z))
         self.string.setText(XYZtoGPS(x,y,z))
+
+    def midButtonPressed(self,x,y):
+        lat,lon = self.loc.latLonFromScreen(x,y)
+        self.gotoLatLon(lat,lon)
+        
+    def latLonToXYZ(self):
+        lat = float(self.latOut.text())
+        lon = float(self.lonOut.text())
+        self.gotoLatLon(lat,lon)
 
     def midButtonReleased(self,x,y):
         pass
