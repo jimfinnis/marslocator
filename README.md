@@ -4,7 +4,7 @@ useful stuff for decoding Cartesian coordinates into longitude and latitude and 
 It's crude, but it got my massive mobile base around the Valles Marineris and up onto the Tharsis Bulge!
 
 ## Required Python packages
-* PyQt5
+* PySide2, OpenCV, Numpy
 
 # Usage 
 

@@ -4,16 +4,9 @@
 
 import os.path
 
-try:
-    from PyQt5.QtCore import Qt, QRectF, pyqtSignal, QT_VERSION_STR, QPoint
-    from PyQt5.QtGui import QImage, QPixmap, QPainterPath, QKeyEvent, QWheelEvent
-    from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene, QFileDialog
-except ImportError:
-    try:
-        from PyQt4.QtCore import Qt, QRectF, pyqtSignal, QT_VERSION_STR
-        from PyQt4.QtGui import QGraphicsView, QGraphicsScene, QImage, QPixmap, QPainterPath, QFileDialog
-    except ImportError:
-        raise ImportError("QtImageViewer: Requires PyQt5 or PyQt4.")
+from PySide2.QtCore import Qt, QRectF, Signal, QPoint
+from PySide2.QtGui import QImage, QPixmap, QPainterPath, QKeyEvent, QWheelEvent
+from PySide2.QtWidgets import QGraphicsView, QGraphicsScene, QFileDialog
 
 __author__ = "Marcel Goldschen-Ohm <marcel.goldschen@gmail.com>"
 __version__ = '0.9.0'
@@ -39,15 +32,15 @@ class QtImageViewer(QGraphicsView):
 
     # Mouse button signals emit image scene (x, y) coordinates.
     # !!! For image (row, column) matrix indexing, row = y and column = x.
-    leftMouseButtonPressed = pyqtSignal(float, float)
-    rightMouseButtonPressed = pyqtSignal(float, float)
-    leftMouseButtonReleased = pyqtSignal(float, float)
-    rightMouseButtonReleased = pyqtSignal(float, float)
-    leftMouseButtonDoubleClicked = pyqtSignal(float, float)
-    rightMouseButtonDoubleClicked = pyqtSignal(float, float)
-    midMouseButtonPressed = pyqtSignal(float, float)
-    midMouseButtonReleased = pyqtSignal(float, float)
-    imageUpdated = pyqtSignal()
+    leftMouseButtonPressed = Signal(float, float)
+    rightMouseButtonPressed = Signal(float, float)
+    leftMouseButtonReleased = Signal(float, float)
+    rightMouseButtonReleased = Signal(float, float)
+    leftMouseButtonDoubleClicked = Signal(float, float)
+    rightMouseButtonDoubleClicked = Signal(float, float)
+    midMouseButtonPressed = Signal(float, float)
+    midMouseButtonReleased = Signal(float, float)
+    imageUpdated = Signal()
 
     def __init__(self, parent):
         QGraphicsView.__init__(self, parent)

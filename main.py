@@ -2,10 +2,11 @@ import csv
 import sys
 from typing import List
 
-from PyQt5 import QtWidgets, uic, QtGui
-from PyQt5.QtCore import QCommandLineParser
-from PyQt5.QtGui import QPainter
+from PySide2 import QtWidgets, QtGui
+from PySide2.QtCore import QCommandLineParser
+from PySide2.QtGui import QPainter
 
+import uiloader
 from maps import *
 from zoom import QtImageViewer
 
@@ -49,7 +50,7 @@ class UI(QtWidgets.QMainWindow):
 
     def __init__(self, planet):
         super().__init__()
-        uic.loadUi('main.ui', self)
+        uiloader.loadUi('main.ui', self)
         csv.register_dialect("custom", delimiter=":", skipinitialspace=True)
         if planet == 'mars':
             self.loc = MarsLocator()
