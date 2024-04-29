@@ -1,13 +1,15 @@
 import csv
 import sys
-from typing import List
+from typing import List,Optional
 
 from PySide2 import QtWidgets, QtGui
 from PySide2.QtCore import QCommandLineParser
 from PySide2.QtGui import QPainter
 
 import uiloader
-from maps import *
+import maps
+from locator import Locator
+
 from zoom import QtImageViewer
 
 cols = [(0, 255, 0), (255, 255, 0), (0, 255, 255)]
@@ -46,18 +48,16 @@ class UI(QtWidgets.QMainWindow):
     loc: Locator
     origmap: QtGui.QPixmap
     imgview: QtImageViewer
-    curnum: int
+    selected: Optional[int]
 
     def __init__(self, planet):
         super().__init__()
         uiloader.loadUi('main.ui', self)
         csv.register_dialect("custom", delimiter=":", skipinitialspace=True)
-        if planet == 'mars':
-            self.loc = MarsLocator()
-        elif planet == 'earthores':
-            self.loc = EarthOresLocator()
-        else:
-            self.loc = EarthLocator()
+        try:
+            self.loc = maps.data[planet]
+        except KeyError:
+            raise Exception(f"Cannot find planet data {planet}")
 
         self.imgview.loadImageFromFile(self.loc.mapfile)
         self.origmap = QtGui.QPixmap(self.imgview.pixmap())
@@ -73,7 +73,7 @@ class UI(QtWidgets.QMainWindow):
         self.recursingImageUpdated = False
         self.clear()
         self.load()
-        self.curnum = len(self.points) - 1
+        self.selected = None
 
     def save(self):
         with open(self.loc.datafile, 'w', newline='') as f:
@@ -92,7 +92,7 @@ class UI(QtWidgets.QMainWindow):
 
     def clear(self):
         self.points = []
-        self.curnum = -1
+        self.selected = None
 
     def cross(self, painter: QPainter, zoom: float, point: Point, selected: bool):
         x, y = self.loc.screenpos(point.lat, point.lon)
@@ -124,14 +124,13 @@ class UI(QtWidgets.QMainWindow):
         self.recursingImageUpdated = True
         self.imgview.setImage(self.origmap)
         for i, point in enumerate(self.points):
-            self.cross(p, zoom, point, i == self.curnum)
+            self.cross(p, zoom, point, i == self.selected)
         p.end()
         self.imgview.setImage(tmp)
         self.recursingImageUpdated = False
 
     def addPoint(self, lat, lon, txt):
-        r, g, b = cols[self.curnum % len(cols)]
-        self.curnum = self.curnum + 1
+        r, g, b = cols[len(self.points) % len(cols)]
         self.points.append(Point(lat, lon, r, g, b, txt))
         self.imageUpdated()
 
@@ -146,7 +145,7 @@ class UI(QtWidgets.QMainWindow):
             lat, lon = self.loc.coords(x, y, z)
             self.latOut.setText(str(lat))
             self.lonOut.setText(str(lon))
-            self.addPoint(lat, lon, "GPS" + str(self.curnum))
+            self.addPoint(lat, lon, "GPS" + str(len(self.points)))
             print(lat, lon)
 
         except ValueError as e:
@@ -158,7 +157,7 @@ class UI(QtWidgets.QMainWindow):
             y = float(self.yedit.text())
             z = float(self.zedit.text())
             lat, lon = self.loc.coords(x, y, z)
-            self.addPoint(lat, lon, "XYZ" + str(self.curnum))
+            self.addPoint(lat, lon, "XYZ" + str(len(self.points)))
             print(lat, lon)
         except ValueError as e:
             raise e
@@ -167,7 +166,7 @@ class UI(QtWidgets.QMainWindow):
         self.latOut.setText(str(lat))
         self.lonOut.setText(str(lon))
         x, y, z = self.loc.XYZfromLatLon(lat, lon)
-        self.addPoint(lat, lon, "MAP" + str(self.curnum))
+        self.addPoint(lat, lon, "MAP" + str(len(self.points)))
         self.xedit.setText(str(x))
         self.yedit.setText(str(y))
         self.zedit.setText(str(z))

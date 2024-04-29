@@ -2,7 +2,19 @@ import math
 
 
 class Locator:
-    def __init__(self):
+    def __init__(self,mapfile,datafile,cx,cy,cz,radius,
+        lat90y=0,latminus90y=4095,lon0x=0,lon360x=8191):
+        
+        self.mapfile = mapfile
+        self.datafile = datafile
+        self.X = cx
+        self.Y = cy
+        self.Z = cz
+        self.K = radius
+        self.lat90y = lat90y
+        self.latminus90y = latminus90y
+        self.lon0x = lon0x
+        self.lon360x = lon360x
         pass
 
     def coords(self, x, y, z):
