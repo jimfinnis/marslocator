@@ -3,9 +3,10 @@
 """
 
 import os.path
+
 try:
-    from PyQt5.QtCore import Qt, QRectF, pyqtSignal, QT_VERSION_STR
-    from PyQt5.QtGui import QImage, QPixmap, QPainterPath
+    from PyQt5.QtCore import Qt, QRectF, pyqtSignal, QT_VERSION_STR, QPoint
+    from PyQt5.QtGui import QImage, QPixmap, QPainterPath, QKeyEvent, QWheelEvent
     from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene, QFileDialog
 except ImportError:
     try:
@@ -13,7 +14,6 @@ except ImportError:
         from PyQt4.QtGui import QGraphicsView, QGraphicsScene, QImage, QPixmap, QPainterPath, QFileDialog
     except ImportError:
         raise ImportError("QtImageViewer: Requires PyQt5 or PyQt4.")
-
 
 __author__ = "Marcel Goldschen-Ohm <marcel.goldschen@gmail.com>"
 __version__ = '0.9.0'
@@ -33,6 +33,8 @@ class QtImageViewer(QGraphicsView):
         Left mouse button drag: Pan image.
         Right mouse button drag: Zoom box.
         Right mouse button doubleclick: Zoom to show entire image.
+    Keys:
+        Backspace: Zoom out (i.e. remove last zoom box).
     """
 
     # Mouse button signals emit image scene (x, y) coordinates.
@@ -43,9 +45,12 @@ class QtImageViewer(QGraphicsView):
     rightMouseButtonReleased = pyqtSignal(float, float)
     leftMouseButtonDoubleClicked = pyqtSignal(float, float)
     rightMouseButtonDoubleClicked = pyqtSignal(float, float)
+    midMouseButtonPressed = pyqtSignal(float, float)
+    midMouseButtonReleased = pyqtSignal(float, float)
+    imageUpdated = pyqtSignal()
 
-    def __init__(self,parent):
-        QGraphicsView.__init__(self,parent)
+    def __init__(self, parent):
+        QGraphicsView.__init__(self, parent)
 
         # Image is displayed as a QPixmap in a QGraphicsScene attached to this QGraphicsView.
         self.scene = QGraphicsScene()
@@ -55,11 +60,14 @@ class QtImageViewer(QGraphicsView):
         self._pixmapHandle = None
 
         # Image aspect ratio mode.
-        # !!! ONLY applies to full image. Aspect ratio is always ignored when zooming.
+        # !!! ONLY applies to full image. Aspect ratio is dealt with elsewhere (if at all)
         #   Qt.IgnoreAspectRatio: Scale image to fit viewport.
         #   Qt.KeepAspectRatio: Scale image to fit inside viewport, preserving aspect ratio.
         #   Qt.KeepAspectRatioByExpanding: Scale image to fill the viewport, preserving aspect ratio.
         self.aspectRatioMode = Qt.KeepAspectRatio
+        # if this is true, we keep the aspect ratio the same as we zoom in and out with selection dragging
+        self.fixedAspect = True
+        self.wheelZoomFactor = 1.3      # how fast the wheel zooms in and out
 
         # Scroll bar behaviour.
         #   Qt.ScrollBarAlwaysOff: Never shows a scroll bar.
@@ -74,9 +82,8 @@ class QtImageViewer(QGraphicsView):
         # Flags for enabling/disabling mouse interaction.
         self.canZoom = True
         self.canPan = True
-        self.midButtonHook = None # set this for middle button options, will call a midButtonPressed/midButtonReleased on this
-        self.imageUpdateHook = None # set this to call imageUpdated on another object when image updates (zoom, pan)
-        self.zoomFactor = 1
+        self.zoomFactor = 1  # initial zoom
+        self.aspect = 1  # will be set to the aspect ratio of the image
 
     def hasImage(self):
         """ Returns whether or not the scene contains an image pixmap.
@@ -121,6 +128,7 @@ class QtImageViewer(QGraphicsView):
             self._pixmapHandle.setPixmap(pixmap)
         else:
             self._pixmapHandle = self.scene.addPixmap(pixmap)
+        self.aspect = pixmap.width() / pixmap.height()
         self.setSceneRect(QRectF(pixmap.rect()))  # Set scene size to image size.
         self.updateViewer()
 
@@ -145,17 +153,15 @@ class QtImageViewer(QGraphicsView):
             return
         if len(self.zoomStack) and self.sceneRect().contains(self.zoomStack[-1]):
             self.fitInView(self.zoomStack[-1], Qt.IgnoreAspectRatio)  # Show zoomed rect (ignore aspect ratio).
-            sfull = max(self.sceneRect().width(),self.sceneRect().height())
+            sfull = max(self.sceneRect().width(), self.sceneRect().height())
             r = self.zoomStack[-1]
-            ssub = max(r.width(),r.height())
-            self.zoomFactor = sfull/ssub
+            ssub = max(r.width(), r.height())
+            self.zoomFactor = sfull / ssub
         else:
             self.zoomStack = []  # Clear the zoom stack (in case we got here because of an invalid zoom).
             self.fitInView(self.sceneRect(), self.aspectRatioMode)  # Show entire image (use current aspect ratio mode).
             self.zoomFactor = 1
-        if self.imageUpdateHook is not None:
-            self.imageUpdateHook.imageUpdated()
-
+        self.imageUpdated.emit()  # Signal that the image has been updated.
 
     def resizeEvent(self, event):
         """ Maintain current zoom on resize.
@@ -175,8 +181,7 @@ class QtImageViewer(QGraphicsView):
                 self.setDragMode(QGraphicsView.RubberBandDrag)
             self.rightMouseButtonPressed.emit(scenePos.x(), scenePos.y())
         elif event.button() == Qt.MiddleButton:
-            if self.midButtonHook is not None:
-                self.midButtonHook.midButtonPressed(scenePos.x(),scenePos.y())
+            self.midMouseButtonPressed.emit(scenePos.x(), scenePos.y())
         QGraphicsView.mousePressEvent(self, event)
 
     def mouseReleaseEvent(self, event):
@@ -193,13 +198,35 @@ class QtImageViewer(QGraphicsView):
                 selectionBBox = self.scene.selectionArea().boundingRect().intersected(viewBBox)
                 self.scene.setSelectionArea(QPainterPath())  # Clear current selection area.
                 if selectionBBox.isValid() and (selectionBBox != viewBBox):
+                    if self.fixedAspect:
+                        # which is larger, width or height? Use the longest one, combined with the aspect ratio of the image
+                        # to determine the new selectionBBox
+                        if selectionBBox.height() > selectionBBox.width():
+                            selectionBBox = QRectF(selectionBBox.x(), selectionBBox.y(),
+                                                   selectionBBox.height() * self.aspect, selectionBBox.height())
+                        else:
+                            selectionBBox = QRectF(selectionBBox.x(), selectionBBox.y(), selectionBBox.width(),
+                                                   selectionBBox.width() / self.aspect)
                     self.zoomStack.append(selectionBBox)
                     self.updateViewer()
             self.setDragMode(QGraphicsView.NoDrag)
             self.rightMouseButtonReleased.emit(scenePos.x(), scenePos.y())
         elif event.button() == Qt.MiddleButton:
-            if self.midButtonHook is not None:
-                self.midButtonHook.midButtonReleased(scenePos.x(),scenePos.y())
+            self.midMouseButtonReleased.emit(scenePos.x(), scenePos.y())
+
+    def zoomBy(self, pos, factor):
+        if len(self.zoomStack) == 0:
+            self.zoomStack.append(self.sceneRect())
+        viewBBox = self.zoomStack[-1]
+
+        # TODO not sure how to get this to zoom in on pos rather than center.
+        center = viewBBox.center()
+        newWidth = viewBBox.width() * factor
+        newHeight = viewBBox.height() * factor
+        newBBox = QRectF(center.x() - newWidth / 2, center.y() - newHeight / 2, newWidth, newHeight)
+        print("newbbox", newBBox)
+        self.zoomStack.append(newBBox)
+        self.updateViewer()
 
     def mouseDoubleClickEvent(self, event):
         """ Show entire image.
@@ -214,33 +241,17 @@ class QtImageViewer(QGraphicsView):
             self.rightMouseButtonDoubleClicked.emit(scenePos.x(), scenePos.y())
         QGraphicsView.mouseDoubleClickEvent(self, event)
 
+    def keyPressEvent(self, e: QKeyEvent):
+        if e.key() == Qt.Key_Backspace:
+            if len(self.zoomStack) > 0:
+                self.zoomStack = self.zoomStack[:-1]
+                self.updateViewer()
+            e.accept()
+        super().keyPressEvent(e)
 
-if __name__ == '__main__':
-    import sys
-    try:
-        from PyQt5.QtWidgets import QApplication
-    except ImportError:
-        try:
-            from PyQt4.QtGui import QApplication
-        except ImportError:
-            raise ImportError("QtImageViewer: Requires PyQt5 or PyQt4.")
-    print('Using Qt ' + QT_VERSION_STR)
-
-    def handleLeftClick(x, y):
-        row = int(y)
-        column = int(x)
-        print("Clicked on image pixel (row="+str(row)+", column="+str(column)+")")
-
-    # Create the application.
-    app = QApplication(sys.argv)
-
-    # Create image viewer and load an image file to display.
-    viewer = QtImageViewer()
-    viewer.loadImageFromFile()  # Pops up file dialog.
-
-    # Handle left mouse clicks with custom slot.
-    viewer.leftMouseButtonPressed.connect(handleLeftClick)
-
-    # Show viewer and run application.
-    viewer.show()
-    sys.exit(app.exec_())
+    def wheelEvent(self, e: QWheelEvent):
+        super().wheelEvent(e)
+        if e.angleDelta().y() > 0:
+            self.zoomBy(e.pos(), 1 / self.wheelZoomFactor)
+        else:
+            self.zoomBy(e.pos(), self.wheelZoomFactor)

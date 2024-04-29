@@ -1,127 +1,63 @@
-from PyQt5 import QtWidgets, uic, QtCore, QtGui
-from PyQt5.QtCore import Qt,QCommandLineOption,QCommandLineParser
-import sys,math,csv
+import csv
+import sys
+from typing import List
 
-cols = [(0,255,0),(255,255,0),(0,255,255)]
+from PyQt5 import QtWidgets, uic, QtGui
+from PyQt5.QtCore import QCommandLineParser
+from PyQt5.QtGui import QPainter
 
-class Locator:
-    def __init__(self):
-        pass
- 
+from maps import *
+from zoom import QtImageViewer
 
-    def coords(self,x,y,z):
-        xr = x-self.X
-        yr = y-self.Y
-        zr = z-self.Z
+cols = [(0, 255, 0), (255, 255, 0), (0, 255, 255)]
 
-        mag = math.sqrt(xr*xr+yr*yr+zr*zr)
-        xr = xr/mag
-        yr = yr/mag
-        zr = zr/mag
-
-        print(x,y,z)
-
-        print(xr,yr,zr)
-        lat=math.asin(yr)
-        lon=math.atan2(xr,zr)
-        return (math.degrees(lat),math.degrees(lon))
-
-    def XYZfromLatLon(self,lat,lon):
-        theta = math.radians(lon)
-        xr = self.K * math.sin(theta)
-        zr = self.K * math.cos(theta)
-        print("DECODING ",lat)
-        yr = self.K * math.sin(math.radians(lat))
-        x = xr+self.X
-        y = yr+self.Y
-        z = zr+self.Z
-        return x,y,z
-        
-    def screenpos(self,lat,lon):    
-        while lat<-90:
-            lat = lat+90
-        while lat>90:
-            lat = lat-90
-            
-        while lon<0:
-            lon = lon+360
-        while lon>360:
-            lon = lon-360
-            
-        lon = lon/360.0
-        lat = (lat+90)/180.0
-        x = self.lon0x+(self.lon360x-self.lon0x)*lon
-        y = self.latminus90y+(self.lat90y-self.latminus90y)*lat
-        print(x,y)
-        return x,y
-    
-    def latLonFromScreen(self,x,y):
-        x = (x-self.lon0x)/(self.lon360x-self.lon0x)
-        y = (y-self.latminus90y)/(self.lat90y-self.latminus90y)
-        lat = y*180.0-90.0
-        lon = x*360.0
-        print("LAT,LON",lat,lon)
-        return lat,lon
 
 # GPS:archfalhwyl #1:1070609.55:121701.79:1583667.99:#FF75C9F1:
-def XYZtoGPS(x,y,z):
-    return "GPS:aaa:{0:.2f}:{1:.2f}:{2:.2f}:#FF75C9F1".format(x,y,z)
+def XYZtoGPS(x, y, z):
+    return "GPS:aaa:{0:.2f}:{1:.2f}:{2:.2f}:#FF75C9F1".format(x, y, z)
 
-    
-class MarsLocator(Locator):
-    def __init__(self):
-        super().__init__()
-        self.X = 1031072.5
-        self.Y = 131072.5
-        self.Z = 1631072.5
-        self.K = 63292 # radius
-        self.lat90y=327
-        self.latminus90y=4421
-        self.lon0x=257
-        self.lon360x=8448
-        self.mapfile = "mars.png"
-        self.datafile = "marsdata"
 
-class EarthLocator(Locator):
-    def __init__(self):
-        super().__init__()
-        self.X = 0.0
-        self.Y = 0.0
-        self.Z = 0.0
-        self.K = 60000 # radius
-        self.lat90y=0
-        self.latminus90y=4095
-        self.lon0x=0
-        self.lon360x=8191
-        self.mapfile = "earth.png"
-        self.datafile = "earthdata"
+class Point:
+    def __init__(self, lat, lon, r, g, b, txt):
+        self.lat = lat
+        self.lon = lon
+        self.r = r
+        self.g = g
+        self.b = b
+        self.txt = txt
 
-class EarthOresLocator(Locator):
-    def __init__(self):
-        super().__init__()
-        self.X = 0.0
-        self.Y = 0.0
-        self.Z = 0.0
-        self.K = 60000 # radius
-        self.lat90y=327
-        self.latminus90y=4421
-        self.lon0x=257
-        self.lon360x=8448
-        self.mapfile = "earthores.png"
-        self.datafile = "earthdata"
-    
+    def qtcolor(self) -> QtGui.QColor:
+        return QtGui.QColor(self.r, self.g, self.b)
+
+    def writeRow(self, csvwriter):
+        csvwriter.writerow((self.lat, self.lon, self.r, self.g, self.b, self.txt))
+
+    @staticmethod
+    def readRow(row):
+        return Point(float(row[0]), float(row[1]), int(row[2]), int(row[3]), int(row[4]), row[5])
+
+    def __str__(self):
+        return "Point({0},{1},{2},{3},{4},{5})".format(self.lat, self.lon, self.r, self.g, self.b, self.txt)
+
+
 class UI(QtWidgets.QMainWindow):
-    def __init__(self,planet):
+    points: List[Point]
+    loc: Locator
+    origmap: QtGui.QPixmap
+    imgview: QtImageViewer
+    curnum: int
+
+    def __init__(self, planet):
         super().__init__()
-        uic.loadUi('main.ui',self)
+        uic.loadUi('main.ui', self)
         csv.register_dialect("custom", delimiter=":", skipinitialspace=True)
-        if planet=='mars':
+        if planet == 'mars':
             self.loc = MarsLocator()
-        elif planet=='earthores':
+        elif planet == 'earthores':
             self.loc = EarthOresLocator()
         else:
             self.loc = EarthLocator()
-         
+
         self.imgview.loadImageFromFile(self.loc.mapfile)
         self.origmap = QtGui.QPixmap(self.imgview.pixmap())
         self.show()
@@ -130,70 +66,74 @@ class UI(QtWidgets.QMainWindow):
         self.clearButton.clicked.connect(self.clear)
         self.writeButton.clicked.connect(self.save)
         self.xyzButton.clicked.connect(self.latLonToXYZ)
-        self.imgview.midButtonHook = self
-        self.recursingImageUpdated=False
-        self.imgview.imageUpdateHook = self
+        self.imgview.midMouseButtonPressed.connect(self.midButtonPressed)
+        self.imgview.imageUpdated.connect(self.imageUpdated)
+
+        self.recursingImageUpdated = False
         self.clear()
         self.load()
-        self.curnum=len(self.points)-1
+        self.curnum = len(self.points) - 1
 
     def save(self):
-        with open(self.loc.datafile,'w',newline='') as f:
+        with open(self.loc.datafile, 'w', newline='') as f:
             writer = csv.writer(f, dialect="custom")
             for p in self.points:
-                writer.writerow(p)
+                p.writeRow(writer)
 
     def load(self):
         try:
             with open(self.loc.datafile) as f:
-                reader = csv.reader(f,dialect='custom')
+                reader = csv.reader(f, dialect='custom')
                 for row in reader:
-                    p = (float(row[0]),float(row[1]),int(row[2]),int(row[3]),int(row[4]),row[5])
-                    self.points.append(p)
+                    self.points.append(Point.readRow(row))
         except FileNotFoundError:
-            pass                
+            pass
 
     def clear(self):
         self.points = []
-        
-    def cross(self,p,lat,lon,zoom,txt,r,g,b):
-        x,y = self.loc.screenpos(lat,lon)
-        pen = QtGui.QPen(QtGui.QColor(r,g,b))
-        w = max(1,20/zoom)
-        print("zoom",zoom,"width",w)
+        self.curnum = -1
+
+    def cross(self, painter: QPainter, zoom: float, point: Point, selected: bool):
+        x, y = self.loc.screenpos(point.lat, point.lon)
+        pen = QtGui.QPen(point.qtcolor())
+        w = max(1.0, 20.0 / zoom)
+        print("zoom", zoom, "width", w)
         pen.setWidthF(w)
-        p.setPen(pen)
-        crossSize=40/zoom
-        p.drawLine(x-crossSize,y-crossSize,x+crossSize,y+crossSize)
-        p.drawLine(x+crossSize,y-crossSize,x-crossSize,y+crossSize)
-        p.drawText(x+40/zoom,y,txt)
+        painter.setPen(pen)
+        crossSize = 40 / zoom
+        if selected:
+            crossSize = crossSize * 2
+            painter.drawEllipse(int(x - crossSize), int(y - crossSize), int(crossSize * 2), int(crossSize * 2))
+        painter.drawLine(int(x - crossSize), int(y - crossSize), int(x + crossSize), int(y + crossSize))
+        painter.drawLine(int(x + crossSize), int(y - crossSize), int(x - crossSize), int(y + crossSize))
+        painter.drawText(int(x + 40 / zoom), int(y), point.txt)
 
     def imageUpdated(self):
         if self.recursingImageUpdated:
             return
-        map = QtGui.QPixmap(self.origmap) # copy
-        p = QtGui.QPainter(map)
+        # we have to make a copy of the pixmap and store it in a local because QPainter will not store a reference
+        # to it, resulting in it being garbage collected and a crash occurring.
+        tmp = QtGui.QPixmap(self.origmap)
+        p = QtGui.QPainter(tmp)
         f = QtGui.QFont()
         zoom = self.imgview.zoomFactor
-        f.setPixelSize(max(10,200/zoom))
+        fontsize = max(10, 200 / zoom)
+        f.setPixelSize(int(fontsize))
         p.setFont(f)
-        self.recursingImageUpdated=True
+        self.recursingImageUpdated = True
         self.imgview.setImage(self.origmap)
-        for lat,lon,r,g,b,txt in self.points:
-            self.cross(p,lat,lon,zoom,txt,r,g,b)
+        for i, point in enumerate(self.points):
+            self.cross(p, zoom, point, i == self.curnum)
         p.end()
-        self.imgview.setImage(map)
-        self.recursingImageUpdated=False
+        self.imgview.setImage(tmp)
+        self.recursingImageUpdated = False
 
-    def addPoint(self,lat,lon,txt):
-        r,g,b = cols[self.curnum%len(cols)]
-        self.curnum=self.curnum+1
-        pt = (lat,lon,r,g,b,txt)
-        self.points.append(pt)
+    def addPoint(self, lat, lon, txt):
+        r, g, b = cols[self.curnum % len(cols)]
+        self.curnum = self.curnum + 1
+        self.points.append(Point(lat, lon, r, g, b, txt))
         self.imageUpdated()
-        
 
-        
     # GPS:archfalhwyl #1:1070609.55:121701.79:1583667.99:#FF75C9F1:
     def newptstring(self):
         try:
@@ -202,11 +142,11 @@ class UI(QtWidgets.QMainWindow):
             y = float(s[3])
             z = float(s[4])
             print("WOB")
-            lat,lon = self.loc.coords(x,y,z)
+            lat, lon = self.loc.coords(x, y, z)
             self.latOut.setText(str(lat))
             self.lonOut.setText(str(lon))
-            self.addPoint(lat,lon,"GPS"+str(self.curnum))
-            print(lat,lon)
+            self.addPoint(lat, lon, "GPS" + str(self.curnum))
+            print(lat, lon)
 
         except ValueError as e:
             raise e
@@ -216,33 +156,30 @@ class UI(QtWidgets.QMainWindow):
             x = float(self.xedit.text())
             y = float(self.yedit.text())
             z = float(self.zedit.text())
-            lat,lon = self.loc.coords(x,y,z)
-            self.addPoint(lat,lon,"XYZ"+str(self.curnum))
-            print(lat,lon)
+            lat, lon = self.loc.coords(x, y, z)
+            self.addPoint(lat, lon, "XYZ" + str(self.curnum))
+            print(lat, lon)
         except ValueError as e:
             raise e
-            
-    def gotoLatLon(self,lat,lon):
+
+    def gotoLatLon(self, lat, lon):
         self.latOut.setText(str(lat))
         self.lonOut.setText(str(lon))
-        x,y,z = self.loc.XYZfromLatLon(lat,lon)
-        self.addPoint(lat,lon,"MAP"+str(self.curnum))
+        x, y, z = self.loc.XYZfromLatLon(lat, lon)
+        self.addPoint(lat, lon, "MAP" + str(self.curnum))
         self.xedit.setText(str(x))
         self.yedit.setText(str(y))
         self.zedit.setText(str(z))
-        self.string.setText(XYZtoGPS(x,y,z))
+        self.string.setText(XYZtoGPS(x, y, z))
 
-    def midButtonPressed(self,x,y):
-        lat,lon = self.loc.latLonFromScreen(x,y)
-        self.gotoLatLon(lat,lon)
-        
+    def midButtonPressed(self, x, y):
+        lat, lon = self.loc.latLonFromScreen(x, y)
+        self.gotoLatLon(lat, lon)
+
     def latLonToXYZ(self):
         lat = float(self.latOut.text())
         lon = float(self.lonOut.text())
-        self.gotoLatLon(lat,lon)
-
-    def midButtonReleased(self,x,y):
-        pass
+        self.gotoLatLon(lat, lon)
 
 
 def main():
@@ -253,14 +190,15 @@ def main():
     parser.addPositionalArgument("planet", "mars/earth/earthores")
 
     parser.process(app)
-    args = parser.positionalArguments() 
+    args = parser.positionalArguments()
 
     planet = "earth"
-    if len(args)>0:
+    if len(args) > 0:
         planet = args[0]
-        
+
     window = UI(planet)
     app.exec_()
-    
+
+
 if __name__ == "__main__":
     main()
