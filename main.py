@@ -1,9 +1,9 @@
 import csv
 import sys
-from typing import List,Optional
+from typing import List, Optional, Set
 
 from PySide2 import QtWidgets, QtGui
-from PySide2.QtCore import QCommandLineParser
+from PySide2.QtCore import QCommandLineParser, QAbstractTableModel, Signal, Qt, QModelIndex
 from PySide2.QtGui import QPainter
 
 import uiloader
@@ -43,12 +43,69 @@ class Point:
         return "Point({0},{1},{2},{3},{4},{5})".format(self.lat, self.lon, self.r, self.g, self.b, self.txt)
 
 
-class UI(QtWidgets.QMainWindow):
+class PointsModel(QAbstractTableModel):
     points: List[Point]
+
+    changed = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self.points = []
+
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole:
+            if orientation == Qt.Horizontal:
+                return ["Name", "Lat", "Lon"][section]
+            else:
+                return str(section)
+
+    def rowCount(self, index):
+        return len(self.points)
+
+    def columnCount(self, index):
+        return 3
+
+    def data(self, index, role):
+        if role == Qt.DisplayRole:
+            p = self.points[index.row()]
+            if index.column() == 0:
+                return p.txt
+            if index.column() == 1:
+                return p.lat
+            if index.column() == 2:
+                return p.lon
+        return None
+
+    def add(self, p: Point):
+        self.beginInsertRows(QModelIndex(), len(self.points), len(self.points))
+        self.points.append(p)
+        self.endInsertRows()
+        self.changed.emit()
+
+    def clear(self, indices=None):
+        """Remove all points from the model. If indices is not None, remove only the points at those indices."""
+        if indices is None:
+            indices = list(range(0, len(self.points)))
+        # we need to remove the rows in reverse order
+        indices = reversed(sorted(indices))
+        for i in indices:
+            self.beginRemoveRows(QModelIndex(), 0, 0)
+            self.points.pop(i)
+            self.endRemoveRows()
+        self.changed.emit()
+
+    def __getitem__(self, item):
+        return self.points[item]
+
+    def getNewPointName(self):
+        return str(len(self.points) + 1)
+
+
+class UI(QtWidgets.QMainWindow):
+    points: PointsModel
     loc: Locator
     origmap: QtGui.QPixmap
     imgview: QtImageViewer
-    selected: Optional[int]
 
     def __init__(self, planet):
         super().__init__()
@@ -68,17 +125,24 @@ class UI(QtWidgets.QMainWindow):
         self.writeButton.clicked.connect(self.save)
         self.xyzButton.clicked.connect(self.latLonToXYZ)
         self.imgview.midMouseButtonPressed.connect(self.midButtonPressed)
+        self.imgview.leftMouseButtonPressed.connect(self.leftButtonPressed)
         self.imgview.imageUpdated.connect(self.imageUpdated)
 
-        self.recursingImageUpdated = False
-        self.clear()
+        self.points = PointsModel()
+        self.tableView.setModel(self.points)
+        self.points.changed.connect(self.imageUpdated)
+        self.tableView.selectionModel().selectionChanged.connect(self.imageUpdated)
         self.load()
-        self.selected = None
+        self.recursingImageUpdated = False
+
+    def confirm(self, title):
+        """Show a QMessageBox with a confirmation question in it, return true if Yes was pressed."""
+        return QtWidgets.QMessageBox.question(self, title, "Are you sure?", QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No) == QtWidgets.QMessageBox.Yes
 
     def save(self):
         with open(self.loc.datafile, 'w', newline='') as f:
             writer = csv.writer(f, dialect="custom")
-            for p in self.points:
+            for p in self.points.points:
                 p.writeRow(writer)
 
     def load(self):
@@ -86,13 +150,14 @@ class UI(QtWidgets.QMainWindow):
             with open(self.loc.datafile) as f:
                 reader = csv.reader(f, dialect='custom')
                 for row in reader:
-                    self.points.append(Point.readRow(row))
+                    self.points.add(Point.readRow(row))
         except FileNotFoundError:
             pass
 
     def clear(self):
-        self.points = []
-        self.selected = None
+        """Remove all points from the model"""
+        if self.confirm("Clear items"):
+            self.points.clear(None)
 
     def cross(self, painter: QPainter, zoom: float, point: Point, selected: bool):
         x, y = self.loc.screenpos(point.lat, point.lon)
@@ -123,16 +188,16 @@ class UI(QtWidgets.QMainWindow):
         p.setFont(f)
         self.recursingImageUpdated = True
         self.imgview.setImage(self.origmap)
-        for i, point in enumerate(self.points):
-            self.cross(p, zoom, point, i == self.selected)
+        selected = [idx.row() for idx in self.tableView.selectedIndexes()]
+        for i, point in enumerate(self.points.points):
+            self.cross(p, zoom, point, i in selected)
         p.end()
         self.imgview.setImage(tmp)
         self.recursingImageUpdated = False
 
     def addPoint(self, lat, lon, txt):
-        r, g, b = cols[len(self.points) % len(cols)]
-        self.points.append(Point(lat, lon, r, g, b, txt))
-        self.imageUpdated()
+        r, g, b = cols[len(self.points.points) % len(cols)]
+        self.points.add(Point(lat, lon, r, g, b, txt))
 
     # GPS:archfalhwyl #1:1070609.55:121701.79:1583667.99:#FF75C9F1:
     def newptstring(self):
@@ -145,7 +210,7 @@ class UI(QtWidgets.QMainWindow):
             lat, lon = self.loc.coords(x, y, z)
             self.latOut.setText(str(lat))
             self.lonOut.setText(str(lon))
-            self.addPoint(lat, lon, "GPS" + str(len(self.points)))
+            self.addPoint(lat, lon, "GPS" + self.points.getNewPointName())
             print(lat, lon)
 
         except ValueError as e:
@@ -157,7 +222,7 @@ class UI(QtWidgets.QMainWindow):
             y = float(self.yedit.text())
             z = float(self.zedit.text())
             lat, lon = self.loc.coords(x, y, z)
-            self.addPoint(lat, lon, "XYZ" + str(len(self.points)))
+            self.addPoint(lat, lon, "XYZ" + self.points.getNewPointName())
             print(lat, lon)
         except ValueError as e:
             raise e
@@ -166,20 +231,24 @@ class UI(QtWidgets.QMainWindow):
         self.latOut.setText(str(lat))
         self.lonOut.setText(str(lon))
         x, y, z = self.loc.XYZfromLatLon(lat, lon)
-        self.addPoint(lat, lon, "MAP" + str(len(self.points)))
+        self.addPoint(lat, lon, "MAP" + self.points.getNewPointName())
         self.xedit.setText(str(x))
         self.yedit.setText(str(y))
         self.zedit.setText(str(z))
         self.string.setText(XYZtoGPS(x, y, z))
 
-    def midButtonPressed(self, x, y):
-        lat, lon = self.loc.latLonFromScreen(x, y)
-        self.gotoLatLon(lat, lon)
-
     def latLonToXYZ(self):
         lat = float(self.latOut.text())
         lon = float(self.lonOut.text())
         self.gotoLatLon(lat, lon)
+
+    def midButtonPressed(self, x, y):
+        lat, lon = self.loc.latLonFromScreen(x, y)
+        self.gotoLatLon(lat, lon)
+
+    def leftButtonPressed(self, ex, ey):
+        # for now, does nothing - I was going to use it for selection but we can do that from the table.
+        pass
 
 
 def main():

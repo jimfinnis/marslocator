@@ -208,7 +208,6 @@ class QtImageViewer(QGraphicsView):
         viewBBox = self.zoomStack[-1]
 
         # TODO not sure how to get this to zoom in on pos rather than center.
-        print(viewBBox.center())
         center = viewBBox.center()
         newWidth = viewBBox.width() * factor
         newHeight = viewBBox.height() * factor
