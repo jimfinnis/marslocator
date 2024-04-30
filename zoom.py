@@ -179,6 +179,17 @@ class QtImageViewer(QGraphicsView):
         scenePos = self.mapToScene(event.pos())
         if event.button() == Qt.LeftButton:
             self.setDragMode(QGraphicsView.NoDrag)
+
+            # get the viewport rectangle in scene coordinates
+            viewBBox = self.mapToScene(self.viewport().rect()).boundingRect()
+
+            # if we have a zoom stack, update the last element with the current view
+            # otherwise, add the current view to the zoom stack
+            if len(self.zoomStack):
+                self.zoomStack[-1] = viewBBox
+            else:
+                self.zoomStack.append(viewBBox)
+
             self.leftMouseButtonReleased.emit(scenePos.x(), scenePos.y())
         elif event.button() == Qt.RightButton:
             if self.canZoom:
