@@ -130,11 +130,6 @@ class QtImageViewer(QGraphicsView):
         Without any arguments, loadImageFromFile() will popup a file dialog to choose the image file.
         With a fileName argument, loadImageFromFile(fileName) will attempt to load the specified image file directly.
         """
-        if len(fileName) == 0:
-            if QT_VERSION_STR[0] == '4':
-                fileName = QFileDialog.getOpenFileName(self, "Open image file.")
-            elif QT_VERSION_STR[0] == '5':
-                fileName, dummy = QFileDialog.getOpenFileName(self, "Open image file.")
         if len(fileName) and os.path.isfile(fileName):
             image = QImage(fileName)
             self.setImage(image)
@@ -213,6 +208,7 @@ class QtImageViewer(QGraphicsView):
         viewBBox = self.zoomStack[-1]
 
         # TODO not sure how to get this to zoom in on pos rather than center.
+        print(viewBBox.center())
         center = viewBBox.center()
         newWidth = viewBBox.width() * factor
         newHeight = viewBBox.height() * factor
