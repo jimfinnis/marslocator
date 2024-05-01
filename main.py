@@ -1,10 +1,12 @@
 import csv
 import sys
+from functools import partial
 from typing import List, Optional, Set
 
 from PySide2 import QtWidgets, QtGui
 from PySide2.QtCore import QCommandLineParser, QAbstractTableModel, Signal, Qt, QModelIndex
 from PySide2.QtGui import QPainter
+from PySide2.QtWidgets import QMenu, QMenuBar
 
 import uiloader
 import maps
@@ -111,13 +113,7 @@ class UI(QtWidgets.QMainWindow):
         super().__init__()
         uiloader.loadUi('main.ui', self)
         csv.register_dialect("custom", delimiter=":", skipinitialspace=True)
-        try:
-            self.loc = maps.data[planet]
-        except KeyError:
-            raise Exception(f"Cannot find planet data {planet}")
 
-        self.imgview.loadImageFromFile(self.loc.mapfile)
-        self.origmap = QtGui.QPixmap(self.imgview.pixmap())
         self.show()
         self.goButton.clicked.connect(self.newptcoords)
         self.stringButton.clicked.connect(self.newptstring)
@@ -132,8 +128,34 @@ class UI(QtWidgets.QMainWindow):
         self.tableView.setModel(self.points)
         self.points.changed.connect(self.imageUpdated)
         self.tableView.selectionModel().selectionChanged.connect(self.imageUpdated)
-        self.load()
         self.recursingImageUpdated = False
+
+        self.createMenu()
+
+    def createMenu(self):
+        menuBar = self.menuBar()
+        menu = QMenu("File", menuBar)
+        menuBar.addMenu(menu)
+        menu.addAction("Save", self.save)
+        menu.addAction("Clear", self.clear)
+
+        menu = QMenu("Planets", menuBar)
+        menuBar.addMenu(menu)
+        for k in maps.data:
+            menu.addAction(k, partial(self.changePlanet, k))
+
+    def changePlanet(self, planet):
+        try:
+            self.loc = maps.data[planet]
+        except KeyError:
+            raise Exception(f"Cannot find planet data {planet}")
+
+        self.recursingImageUpdated = True  # not really, but we don't want to update the image while we're setting up
+        self.load()
+        self.imgview.loadImageFromFile(self.loc.mapfile)
+        self.recursingImageUpdated = False
+        self.origmap = QtGui.QPixmap(self.imgview.pixmap())
+        self.imageUpdated()
 
     def confirm(self, title):
         """Show a QMessageBox with a confirmation question in it, return true if Yes was pressed."""
@@ -160,7 +182,7 @@ class UI(QtWidgets.QMainWindow):
             self.points.clear(None)
 
     def cross(self, painter: QPainter, zoom: float, point: Point, selected: bool):
-        x, y = self.loc.screenpos(point.lat, point.lon)
+        x, y = self.loc.screenFromLatLon(point.lat, point.lon)
         pen = QtGui.QPen(point.qtcolor())
         w = max(1.0, 20.0 / zoom)
         print("zoom", zoom, "width", w)
@@ -207,7 +229,7 @@ class UI(QtWidgets.QMainWindow):
             y = float(s[3])
             z = float(s[4])
             print("WOB")
-            lat, lon = self.loc.coords(x, y, z)
+            lat, lon = self.loc.latLonFromXYZ(x, y, z)
             self.latOut.setText(str(lat))
             self.lonOut.setText(str(lon))
             self.addPoint(lat, lon, "GPS" + self.points.getNewPointName())
@@ -221,7 +243,7 @@ class UI(QtWidgets.QMainWindow):
             x = float(self.xedit.text())
             y = float(self.yedit.text())
             z = float(self.zedit.text())
-            lat, lon = self.loc.coords(x, y, z)
+            lat, lon = self.loc.latLonFromXYZ(x, y, z)
             self.addPoint(lat, lon, "XYZ" + self.points.getNewPointName())
             print(lat, lon)
         except ValueError as e:

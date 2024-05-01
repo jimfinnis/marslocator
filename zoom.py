@@ -121,6 +121,7 @@ class QtImageViewer(QGraphicsView):
             self._pixmapHandle.setPixmap(pixmap)
         else:
             self._pixmapHandle = self.scene.addPixmap(pixmap)
+        print(f"Pixmap width {pixmap.width()}, height {pixmap.height()}")
         self.aspect = pixmap.width() / pixmap.height()
         self.setSceneRect(QRectF(pixmap.rect()))  # Set scene size to image size.
         self.updateViewer()
@@ -130,6 +131,9 @@ class QtImageViewer(QGraphicsView):
         Without any arguments, loadImageFromFile() will popup a file dialog to choose the image file.
         With a fileName argument, loadImageFromFile(fileName) will attempt to load the specified image file directly.
         """
+        if not os.path.isfile(fileName):
+            fileName, _ = QFileDialog.getOpenFileName(self, "Open Image File", "", "Image Files (*.png *.jpg *.bmp)")
+
         if len(fileName) and os.path.isfile(fileName):
             image = QImage(fileName)
             self.setImage(image)
