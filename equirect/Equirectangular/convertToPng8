@@ -1,0 +1,7 @@
+#!/bin/bash
+
+for x in *auto*.png; do
+    echo $x
+    mogrify -format "png8" $x
+    mv `basename $x .png`.png8 $x
+done

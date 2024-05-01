@@ -49,6 +49,13 @@ def process(planet):
             2 if showThickContour else 1
         )
     
+    # flip image around both axes, for reasons to do with the original
+    # image format
+    
+    # reduces memory
+    terr = terr.astype(np.uint8)
+    terr = cv.flip(terr,-1)
+    
     cv.imwrite(f"{planet}-auto.png",terr)
         
     

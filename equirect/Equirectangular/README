@@ -1,0 +1,11 @@
+Process the files by running "process.py" and then "convertToPng8".
+
+Process.py combines both heightmap and contours with terrain to give
+a contoured map with slightly darker deep parts. It also flips the
+images horizontally and vertically, because the source images are the
+wrong way round.
+
+The result is a 24-bit PNG, which the converter then converts into
+8-bit indexed.
+
+
