@@ -11,6 +11,7 @@ from PySide2.QtWidgets import QMenu, QMenuBar
 import uiloader
 import maps
 from locator import Locator
+from pointedit import PointEditDialog
 
 from zoom import QtImageViewer
 
@@ -128,6 +129,7 @@ class UI(QtWidgets.QMainWindow):
         self.tableView.setModel(self.points)
         self.points.changed.connect(self.imageUpdated)
         self.tableView.selectionModel().selectionChanged.connect(self.imageUpdated)
+        self.tableView.doubleClicked.connect(self.tableDoubleClick)
         self.recursingImageUpdated = False
 
         self.createMenu()
@@ -143,6 +145,7 @@ class UI(QtWidgets.QMainWindow):
         menuBar.addMenu(menu)
         for k in maps.data:
             menu.addAction(k, partial(self.changePlanet, k))
+
 
     def changePlanet(self, planet):
         try:
@@ -180,6 +183,15 @@ class UI(QtWidgets.QMainWindow):
         """Remove all points from the model"""
         if self.confirm("Clear items"):
             self.points.clear(None)
+
+    def tableDoubleClick(self, index):
+        row = index.row()
+        p = self.points[row]
+        pe = PointEditDialog(p.txt, p.r, p.g, p.b)
+        if pe.exec_():
+            p.txt = pe.name
+            p.r, p.g, p.b = pe.col
+            self.points.changed.emit()
 
     def cross(self, painter: QPainter, zoom: float, point: Point, selected: bool):
         x, y = self.loc.screenFromLatLon(point.lat, point.lon)
