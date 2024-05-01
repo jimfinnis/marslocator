@@ -121,6 +121,7 @@ class UI(QtWidgets.QMainWindow):
         self.clearButton.clicked.connect(self.clear)
         self.writeButton.clicked.connect(self.save)
         self.xyzButton.clicked.connect(self.latLonToXYZ)
+        self.genStringButton.clicked.connect(self.genStringFromCurrentPoint)
         self.imgview.midMouseButtonPressed.connect(self.midButtonPressed)
         self.imgview.leftMouseButtonPressed.connect(self.leftButtonPressed)
         self.imgview.imageUpdated.connect(self.imageUpdated)
@@ -128,7 +129,7 @@ class UI(QtWidgets.QMainWindow):
         self.points = PointsModel()
         self.tableView.setModel(self.points)
         self.points.changed.connect(self.imageUpdated)
-        self.tableView.selectionModel().selectionChanged.connect(self.imageUpdated)
+        self.tableView.selectionModel().selectionChanged.connect(self.selectChanged)
         self.tableView.doubleClicked.connect(self.tableDoubleClick)
         self.recursingImageUpdated = False
 
@@ -261,6 +262,25 @@ class UI(QtWidgets.QMainWindow):
         except ValueError as e:
             raise e
 
+    def genStringFromCurrentPoint(self):
+        indices = set([idx.row() for idx in self.tableView.selectedIndexes()])
+        if len(indices) == 1:
+            p = self.points[indices.pop()]
+            x, y, z = self.loc.XYZfromLatLon(p.lat, p.lon)
+            self.string.setText(XYZtoGPS(x, y, z))
+
+    def selectChanged(self):
+        indices = set([idx.row() for idx in self.tableView.selectedIndexes()])
+        if len(indices) == 1:
+            p = self.points[indices.pop()]
+            self.latOut.setText(str(p.lat))
+            self.lonOut.setText(str(p.lon))
+            # convert lat,lon to XYZ
+            x, y, z = self.loc.XYZfromLatLon(p.lat, p.lon)
+            self.xedit.setText(str(x))
+            self.yedit.setText(str(y))
+            self.zedit.setText(str(z))
+
     def gotoLatLon(self, lat, lon):
         self.latOut.setText(str(lat))
         self.lonOut.setText(str(lon))
@@ -283,6 +303,12 @@ class UI(QtWidgets.QMainWindow):
     def leftButtonPressed(self, ex, ey):
         # for now, does nothing - I was going to use it for selection but we can do that from the table.
         pass
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Delete:
+            indices = set([idx.row() for idx in self.tableView.selectedIndexes()])
+            if len(indices) and self.confirm(f"Will delete {len(indices)}"):
+                self.points.clear(indices)
 
 
 def main():
