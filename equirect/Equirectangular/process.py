@@ -49,7 +49,7 @@ def process(planet):
             2 if showThickContour else 1
         )
     
-    cv.imwrite(f"{planet}-Contours.png",terr)
+    cv.imwrite(f"{planet}-auto.png",terr)
         
     
 
