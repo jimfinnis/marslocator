@@ -1,3 +1,4 @@
+import json
 import cv2 as cv
 import numpy as np
 
@@ -26,6 +27,9 @@ def process(planet):
 
     # convert height map to single channel
     hm = cv.cvtColor(hm, cv.COLOR_BGR2GRAY)
+    # find highest and lowest pixel
+    maxy,maxx = np.unravel_index(hm.argmax(), hm.shape)
+    miny,minx = np.unravel_index(hm.argmin(), hm.shape)
 
     # multiply by heightmap
     hm2 = hm.astype(np.float32) / 255.0
@@ -37,6 +41,7 @@ def process(planet):
     terr = terr * hm2
     terr = cv.normalize(terr, terr, 0, 255, cv.NORM_MINMAX)
     print(np.min(terr), np.max(terr))
+    
 
     # determine contour levels
     heights = np.linspace(0, 255, numcontours)
@@ -57,8 +62,21 @@ def process(planet):
     # reduces memory
     terr = terr.astype(np.uint8)
     terr = cv.flip(terr, -1)
+#    maxy = terr.shape[0]-maxy
+#    maxx = terr.shape[1]-maxx
+#    miny = terr.shape[0]-miny
+#    minx = terr.shape[1]-minx
 
     cv.imwrite(f"{planet}-auto.png", terr)
+    
+    
+    with open(f"{planet}-mapdata.json","w") as f:
+        mapdata = {
+            "maxx": int(maxx),
+            "maxy": int(maxy),
+            "minx": int(minx),
+            "miny": int(miny) }
+        f.write(json.dumps(mapdata, sort_keys=True, indent=4))
 
 
 def processall():
@@ -67,4 +85,5 @@ def processall():
         process(x)
 
 
-processall()
+#processall()
+process("Foo")

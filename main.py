@@ -147,6 +147,15 @@ class UI(QtWidgets.QMainWindow):
         for k in maps.data:
             menu.addAction(k, partial(self.changePlanet, k))
 
+    def pointFromInfo(self,xkey,ykey,txt):
+        d = self.loc.info
+        x, y = d[xkey],d[ykey]
+        print(x,y)
+        lat, lon = self.loc.latLonFromScreen(x, y)
+        print(lat,lon)
+        p = Point(lat, lon, 255, 255, 0, txt)
+        self.points.add(p)
+        
 
     def changePlanet(self, planet):
         try:
@@ -157,6 +166,12 @@ class UI(QtWidgets.QMainWindow):
         self.recursingImageUpdated = True  # not really, but we don't want to update the image while we're setting up
         self.load()
         self.imgview.loadImageFromFile(self.loc.mapfile)
+        
+#        self.pointFromInfo("minx","miny","min")
+#        self.pointFromInfo("maxx","maxy","max")
+        
+        
+        
         self.recursingImageUpdated = False
         self.origmap = QtGui.QPixmap(self.imgview.pixmap())
         self.imageUpdated()
@@ -198,7 +213,7 @@ class UI(QtWidgets.QMainWindow):
         x, y = self.loc.screenFromLatLon(point.lat, point.lon)
         pen = QtGui.QPen(point.qtcolor())
         w = max(1.0, 20.0 / zoom)
-        print("zoom", zoom, "width", w)
+        print(f"point {point.txt}, x={x} y={y}")
         pen.setWidthF(w)
         painter.setPen(pen)
         crossSize = 40 / zoom

@@ -1,12 +1,16 @@
-import math
+import math,json
 
 
 class Locator:
-    def __init__(self, mapfile, datafile, cx, cy, cz, radius,
+    def __init__(self, mapfile, infofile, datafile, cx, cy, cz, radius,
                  lat90y=0, latminus90y=4095, lon0x=0, lon360x=8191, lonOffset=0, flipv=True, fliph=True):
 
-        self.mapfile = mapfile
-        self.datafile = datafile
+        self.mapfile = mapfile          # map image filename
+        self.datafile = datafile        # userdata filename
+        
+        with open(infofile) as f:
+            self.info = json.loads(f.read())
+
         self.X = cx
         self.Y = cy
         self.Z = cz
