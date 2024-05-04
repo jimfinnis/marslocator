@@ -167,8 +167,8 @@ class UI(QtWidgets.QMainWindow):
         self.load()
         self.imgview.loadImageFromFile(self.loc.mapfile)
         
-#        self.pointFromInfo("minx","miny","min")
-#        self.pointFromInfo("maxx","maxy","max")
+        self.pointFromInfo("minx","miny","min")
+        self.pointFromInfo("maxx","maxy","max")
         
         
         

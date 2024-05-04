@@ -62,10 +62,10 @@ def process(planet):
     # reduces memory
     terr = terr.astype(np.uint8)
     terr = cv.flip(terr, -1)
-#    maxy = terr.shape[0]-maxy
-#    maxx = terr.shape[1]-maxx
-#    miny = terr.shape[0]-miny
-#    minx = terr.shape[1]-minx
+    maxy = (terr.shape[0]-1)-maxy
+    maxx = (terr.shape[1]-1)-maxx
+    miny = (terr.shape[0]-1)-miny
+    minx = (terr.shape[1]-1)-minx
 
     cv.imwrite(f"{planet}-auto.png", terr)
     
@@ -85,5 +85,4 @@ def processall():
         process(x)
 
 
-#processall()
-process("Foo")
+processall()

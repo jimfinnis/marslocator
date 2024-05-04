@@ -9,8 +9,7 @@ from locator import Locator
 # |TITAN;(36385.04,226384,5796385);9238.224;CYAN;;;;
 
 mars = Locator("maps/Mars-auto.png", "maps/Mars-mapdata.json", "marsdata",
-               1031072.5, 131072.5, 63292,
-               327, 4421, 257, 8448)
+               1032762,134086,1632659, 63292)
 
 earth = Locator("maps/Earthlike-auto.png", "maps/Earthlike-mapdata.json", "earthdata",
                 0, 0, 0, 60000)
@@ -34,9 +33,9 @@ moon = Locator("maps/Moon-auto.png", "maps/Moon-mapdata.json", "moondata",
                16384.5, 136384.5, -113615.5, 60000)
 
 # map made in a different system, so no flips.
-earthores = Locator("maps/earthores.png", "maps/Earthlike-mapdata.json", "earthdata",
-                    0, 0, 0, 60000,
-                    327, 4421, 257, 8448)
+#earthores = Locator("maps/earthores.png", "maps/Earthlike-mapdata.json", "earthdata",
+#                    0, 0, 0, 60000,
+#                    327, 4421, 257, 8448)
 
 data = {"mars": mars,
         "earth": earth,
@@ -46,6 +45,4 @@ data = {"mars": mars,
         "europa": europa,
         "alien": alien,
         "moon": moon,
-
-        "earthores": earthores
         }
